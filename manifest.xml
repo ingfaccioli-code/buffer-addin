@@ -23,7 +23,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://TUODOMINIO/buffer-addin/taskpane.html"/>
+        <SourceLocation DefaultValue="https://ingfaccioli-code/buffer-addin/taskpane.html"/>
         <RequestedHeight>250</RequestedHeight>
       </DesktopSettings>
     </Form>
