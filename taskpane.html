@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Buffer Calendario</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    :root {
+      --blue:   #0F6CBD;
+      --blue-l: #EBF3FC;
+      --yellow: #FFF4CE;
+      --green:  #DFF6DD;
+      --red-l:  #FDE7E9;
+      --border: #D1D1D1;
+      --text:   #242424;
+      --muted:  #616161;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: #fff;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    h1 svg { flex-shrink: 0; }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+
+    /* info box appuntamento selezionato */
+    #appt-info {
+      background: var(--blue-l);
+      border: 1px solid #C7DEFA;
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: #0D4F8C;
+      display: none;
+    }
+    #appt-info strong { display: block; margin-bottom: 2px; font-size: 13px; color: var(--text); }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .input-row input {
+      width: 80px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      color: var(--text);
+      text-align: center;
+    }
+    .input-row input:focus {
+      outline: 2px solid var(--blue);
+      outline-offset: 1px;
+      border-color: var(--blue);
+    }
+    .input-row span { color: var(--muted); font-size: 12px; }
+
+    .hint { color: var(--muted); font-size: 11px; margin-bottom: 16px; }
+
+    .nome-row { margin-bottom: 16px; }
+    .nome-row input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+    }
+    .nome-row input:focus {
+      outline: 2px solid var(--blue);
+      outline-offset: 1px;
+      border-color: var(--blue);
+    }
+
+    button {
+      width: 100%;
+      padding: 8px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover:not(:disabled) { background: #0D5BAA; }
+    button:disabled { background: #C0C0C0; cursor: default; }
+
+    #status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      display: none;
+    }
+    #status.ok   { background: var(--green); border: 1px solid #A8D9A5; color: #1E6B1E; }
+    #status.err  { background: var(--red-l); border: 1px solid #F5C2C7; color: #9E1B2E; }
+    #status.info { background: var(--yellow); border: 1px solid #EDCC6E; color: #6B4F00; }
+
+    .loading { display: inline-block; margin-right: 4px; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<h1>
+  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="3" width="18" height="15" rx="2" stroke="#0F6CBD" stroke-width="1.5"/>
+    <path d="M1 7h18" stroke="#0F6CBD" stroke-width="1.5"/>
+    <path d="M6 1v3M14 1v3" stroke="#0F6CBD" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="10" cy="12" r="3" stroke="#0F6CBD" stroke-width="1.3"/>
+    <path d="M10 10.5V12l1 1" stroke="#0F6CBD" stroke-width="1.2" stroke-linecap="round"/>
+  </svg>
+  Buffer Calendario
+</h1>
+<p class="subtitle">Aggiunge tempo di viaggio prima e dopo l'evento</p>
+
+<div id="appt-info">
+  <strong id="appt-title">—</strong>
+  <span id="appt-time">—</span>
+</div>
+
+<div class="nome-row">
+  <label for="nomeBuffer">Nome degli appuntamenti buffer</label>
+  <input type="text" id="nomeBuffer" value="Tempo di viaggio" />
+</div>
+
+<label for="durata">Durata buffer (minuti)</label>
+<div class="input-row">
+  <input type="number" id="durata" value="60" min="5" max="480" step="5" />
+  <span>minuti prima e dopo</span>
+</div>
+<p class="hint">Entrambi gli appuntamenti saranno impostati come "Fuori sede" e categoria gialla.</p>
+
+<button id="btnCrea" disabled>Caricamento…</button>
+
+<div id="status"></div>
+
+<script>
+Office.onReady(function(info) {
+  if (info.host !== Office.HostType.Outlook) return;
+
+  const btn    = document.getElementById('btnCrea');
+  const status = document.getElementById('status');
+  const info_  = document.getElementById('appt-info');
+  const titleEl= document.getElementById('appt-title');
+  const timeEl = document.getElementById('appt-time');
+
+  // Mostra info sull'appuntamento corrente
+  const item = Office.context.mailbox.item;
+  if (item && item.itemType === Office.MailboxEnums.ItemType.Appointment) {
+    item.subject.getAsync(r => {
+      titleEl.textContent = r.value || '(senza titolo)';
+    });
+    item.start.getAsync(s => {
+      item.end.getAsync(e => {
+        const fmt = d => d.toLocaleString('it-IT', {
+          day:'2-digit', month:'2-digit', year:'numeric',
+          hour:'2-digit', minute:'2-digit'
+        });
+        timeEl.textContent = fmt(s.value) + ' → ' + fmt(e.value);
+      });
+    });
+    info_.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Crea buffer prima e dopo';
+  } else {
+    showStatus('Apri un appuntamento del calendario per usare questo add-in.', 'info');
+  }
+
+  btn.addEventListener('click', function() {
+    const durata   = parseInt(document.getElementById('durata').value, 10);
+    const nome     = document.getElementById('nomeBuffer').value.trim() || 'Tempo di viaggio';
+
+    if (isNaN(durata) || durata < 5) {
+      showStatus('Inserisci una durata valida (minimo 5 minuti).', 'err');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading">⟳</span> Creazione in corso…';
+    hideStatus();
+
+    item.start.getAsync(function(startResult) {
+      item.end.getAsync(function(endResult) {
+        if (startResult.status !== Office.AsyncResultStatus.Succeeded ||
+            endResult.status   !== Office.AsyncResultStatus.Succeeded) {
+          showStatus('Impossibile leggere orari dell\'appuntamento.', 'err');
+          resetBtn(nome);
+          return;
+        }
+
+        const startUTC = startResult.value;
+        const endUTC   = endResult.value;
+        const ms       = durata * 60 * 1000;
+
+        // Appuntamento PRIMA
+        const startBefore = new Date(startUTC.getTime() - ms);
+        const endBefore   = startUTC;
+
+        // Appuntamento DOPO
+        const startAfter  = endUTC;
+        const endAfter    = new Date(endUTC.getTime() + ms);
+
+        // Crea i due appuntamenti tramite EWS
+        creaAppuntamento(nome, startBefore, endBefore, function(ok1, err1) {
+          if (!ok1) {
+            showStatus('Errore nel creare il buffer PRIMA: ' + err1, 'err');
+            resetBtn(nome);
+            return;
+          }
+          creaAppuntamento(nome, startAfter, endAfter, function(ok2, err2) {
+            if (!ok2) {
+              showStatus('Buffer PRIMA creato ✓ — Errore buffer DOPO: ' + err2, 'err');
+            } else {
+              showStatus('✓ Buffer creati con successo!\n' +
+                'Prima: ' + fmtIt(startBefore) + ' – ' + fmtIt(endBefore) + '\n' +
+                'Dopo:  ' + fmtIt(startAfter)  + ' – ' + fmtIt(endAfter), 'ok');
+            }
+            resetBtn(nome);
+          });
+        });
+      });
+    });
+  });
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  function fmtIt(d) {
+    return d.toLocaleString('it-IT', {
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'
+    });
+  }
+
+  function resetBtn(nome) {
+    btn.disabled = false;
+    btn.textContent = 'Crea buffer prima e dopo';
+  }
+
+  function showStatus(msg, tipo) {
+    status.textContent = msg;
+    status.className   = tipo;
+    status.style.display = 'block';
+  }
+
+  function hideStatus() {
+    status.style.display = 'none';
+  }
+
+  /**
+   * Crea un appuntamento tramite EWS (Exchange Web Services).
+   * Funziona con account Exchange / Microsoft 365.
+   * Stato: olOutOfOffice = 3, categoria gialla.
+   */
+  function creaAppuntamento(soggetto, inizio, fine, callback) {
+    const isoInizio = inizio.toISOString();
+    const isoFine   = fine.toISOString();
+
+    // Durata in minuti
+    const durataMin = Math.round((fine - inizio) / 60000);
+
+    const ewsRequest =
+      '<?xml version="1.0" encoding="utf-8"?>' +
+      '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' +
+      '  xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages"' +
+      '  xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"' +
+      '  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
+      '  <soap:Header>' +
+      '    <t:RequestServerVersion Version="Exchange2013"/>' +
+      '  </soap:Header>' +
+      '  <soap:Body>' +
+      '    <m:CreateItem SendMeetingInvitations="SendToNone">' +
+      '      <m:SavedItemFolderId>' +
+      '        <t:DistinguishedFolderId Id="calendar"/>' +
+      '      </m:SavedItemFolderId>' +
+      '      <m:Items>' +
+      '        <t:CalendarItem>' +
+      '          <t:Subject>' + escXml(soggetto) + '</t:Subject>' +
+      '          <t:Start>' + isoInizio + '</t:Start>' +
+      '          <t:End>' + isoFine + '</t:End>' +
+      '          <t:LegacyFreeBusyStatus>OOF</t:LegacyFreeBusyStatus>' +
+      '          <t:ReminderIsSet>false</t:ReminderIsSet>' +
+      '          <t:Categories>' +
+      '            <t:String>Categoria giallo</t:String>' +
+      '          </t:Categories>' +
+      '        </t:CalendarItem>' +
+      '      </m:Items>' +
+      '    </m:CreateItem>' +
+      '  </soap:Body>' +
+      '</soap:Envelope>';
+
+    Office.context.mailbox.makeEwsRequestAsync(ewsRequest, function(result) {
+      if (result.status === Office.AsyncResultStatus.Failed) {
+        callback(false, result.error.message);
+        return;
+      }
+      // Controlla la risposta SOAP per eventuali errori EWS
+      const xml = result.value;
+      if (xml && xml.indexOf('ResponseClass="Error"') !== -1) {
+        // Estrai il messaggio d'errore
+        const match = xml.match(/<m:MessageText>([^<]+)<\/m:MessageText>/);
+        callback(false, match ? match[1] : 'Errore EWS sconosciuto');
+      } else {
+        callback(true, null);
+      }
+    });
+  }
+
+  function escXml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+});
+</script>
+</body>
+</html>
